@@ -370,6 +370,7 @@ class BlazeServerBuilder[F[_]] private (
             configure(engine)
 
             val leafBuilder =
+              // http2Stage/http1Stage が TailStage を渡しているっぽい
               if (isHttp2Enabled) http2Stage(executionContext, engine).map(LeafBuilder(_))
               else http1Stage(executionContext, secure = true, engine.some).map(LeafBuilder(_))
 
@@ -384,6 +385,7 @@ class BlazeServerBuilder[F[_]] private (
     }
   }
 
+  // MEMO: ここがserverを作成しているエントリ. http4sのServerBuilder.serveWhile とかから呼ばれる
   def resource: Resource[F, Server] = {
     def resolveAddress(address: InetSocketAddress) =
       if (address.isUnresolved) new InetSocketAddress(address.getHostName, address.getPort)
@@ -410,6 +412,8 @@ class BlazeServerBuilder[F[_]] private (
           ctxOpt <- sslConfig.makeContext
           engineCfg = ctxOpt.map(ctx => (ctx, sslConfig.configureEngine _))
           address = resolveAddress(socketAddress)
+          // reaf builderを作成
+          // MEMO: pipelineの概念について: https://github.com/http4s/blaze#data-flow
         } yield factory.bind(address, pipelineFactory(scheduler, engineCfg, dispatcher)).get
       )(serverChannel => F.delay(serverChannel.close()))
 
